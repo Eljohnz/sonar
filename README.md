@@ -14,6 +14,15 @@ npm run dev
 
 Open Vite's local URL (usually `http://localhost:5173`). For production build checks, run `npm run build`.
 
+## Phase 1 stability fixes
+
+- Changing a Spotify link cancels its pending metadata request. Late responses and errors are ignored, including responses already decoding when cancelled. Navigating away also cancels the request. A title edited while fetching is preserved.
+- Saved demo songs and likes are validated before use. Valid entries and legacy/custom visualizer palettes are retained; malformed entries and duplicate IDs are skipped. Startup does not overwrite saved data.
+- Browser storage failures keep songs and likes usable for the current session and show a save-failure notice. A later successful save clears the relevant failure notice. Changes that could not be saved may be lost after a refresh.
+- Run `npm test` for the storage and Spotify-request regression tests. The runner uses the installed TypeScript compiler and Node's built-in test runner; no new packages are required.
+
+**Stability verification on October 15, 2026:** all 14 regression tests and the production build passed. Isolated browser checks also verified recovery from mixed invalid/valid saved data, no initial song/like writes, out-of-order Spotify responses, publishing and liking with failed storage writes, and clearing the notice when saves succeed. These checks use test responses and session-only test storage; real Spotify playback and live Supabase still need separate testing.
+
 ## What's new: song details and transitions
 
 Open any Discover card or Spotlight's **Explore** button to see the updated song page:

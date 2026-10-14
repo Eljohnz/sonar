@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { demoSongs } from '../data/demo'
 import { isDemo, supabase } from '../lib/supabase'
+import { readDemoLikes, readDemoSongs, writeDemoValue } from '../lib/demoStorage'
 import type { Song, SongInput, SongStatus } from '../types/music'
 import { useAuth } from './AuthContext'
 
@@ -10,6 +11,7 @@ type MusicContextValue = {
   likes: Record<string, number>
   busy: boolean
   error: string | null
+  storageWarning: string | null
   addSong: (input: SongInput) => Promise<void>
   toggleLike: (songId: string) => Promise<void>
   setStatus: (songId: string, status: SongStatus) => Promise<void>
@@ -17,13 +19,7 @@ type MusicContextValue = {
 }
 
 function initialDemoSongs(): Song[] {
-  try {
-    const saved = JSON.parse(localStorage.getItem('sonar_songs') || '[]') as Song[]
-    return [...saved, ...demoSongs]
-  } catch { return demoSongs }
-}
-function initialLikes(): string[] {
-  try { return JSON.parse(localStorage.getItem('sonar_likes') || '[]') as string[] } catch { return [] }
+  return [...readDemoSongs(), ...demoSongs]
 }
 const MusicContext = createContext<MusicContextValue | null>(null)
 
@@ -31,9 +27,16 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth()
   const [songs, setSongs] = useState<Song[]>(isDemo ? initialDemoSongs : [])
   const [likes, setLikes] = useState<Record<string, number>>({})
-  const [likedIds, setLikedIds] = useState<string[]>(isDemo ? initialLikes : [])
+  const [likedIds, setLikedIds] = useState<string[]>(isDemo ? readDemoLikes : [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [songStorageFailed, setSongStorageFailed] = useState(false)
+  const [likeStorageFailed, setLikeStorageFailed] = useState(false)
+  const lastSongs = useRef(songs)
+  const lastLikedIds = useRef(likedIds)
+  const storageWarning = songStorageFailed || likeStorageFailed
+    ? 'Some changes could not be saved in this browser. You can keep using SONAR, but those changes may be lost when you refresh or close this page.'
+    : null
 
   const refresh = useCallback(async () => {
     if (!supabase) return
@@ -52,17 +55,21 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
-    if (isDemo) localStorage.setItem('sonar_likes', JSON.stringify(likedIds))
+    // Do not overwrite stored data during startup, especially if reading it failed.
+    if (!isDemo || lastLikedIds.current === likedIds) return
+    lastLikedIds.current = likedIds
+    setLikeStorageFailed(!writeDemoValue('sonar_likes', likedIds))
   }, [likedIds])
+  useEffect(() => {
+    if (!isDemo || lastSongs.current === songs) return
+    lastSongs.current = songs
+    setSongStorageFailed(!writeDemoValue('sonar_songs', songs.filter(song => !song.id.startsWith('demo-'))))
+  }, [songs])
 
   const addSong = async (input: SongInput) => {
     if (!supabase) {
       const newSong: Song = { ...input, id: crypto.randomUUID(), user_id: null, status: 'published', created_at: new Date().toISOString() }
-      setSongs(current => {
-        const all = [newSong, ...current]
-        localStorage.setItem('sonar_songs', JSON.stringify(all.filter(song => !song.id.startsWith('demo-'))))
-        return all
-      })
+      setSongs(current => [newSong, ...current])
       return
     }
     if (!user) throw new Error('Please sign in before submitting a song.')
@@ -74,7 +81,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const toggleLike = async (songId: string) => {
     const alreadyLiked = likedIds.includes(songId)
     if (!supabase) {
-      setLikedIds(current => alreadyLiked ? current.filter(id => id !== songId) : [...current, songId])
+      setLikedIds(current => current.includes(songId) ? current.filter(id => id !== songId) : [...current, songId])
       return
     }
     if (!user) throw new Error('Sign in to like songs.')
@@ -94,7 +101,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     await refresh()
   }
 
-  return <MusicContext.Provider value={{ songs, likes, likedIds, busy, error, addSong, toggleLike, setStatus, refresh }}>{children}</MusicContext.Provider>
+  return <MusicContext.Provider value={{ songs, likes, likedIds, busy, error, storageWarning, addSong, toggleLike, setStatus, refresh }}>{children}</MusicContext.Provider>
 }
 
 export function useMusic() {
