@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Disc3, Headphones, Home, LayoutDashboard, LogIn, LogOut, Menu, Music2, Plus, Radio, Palette, UserCircle2, Waves, X } from 'lucide-react'
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useMusic } from '../context/MusicContext'
 import { isDemo } from '../lib/supabase'
 
 function NavItem({ to, icon: Icon, children }: { to: string; icon: typeof Home; children: ReactNode }) {
@@ -10,6 +11,7 @@ function NavItem({ to, icon: Icon, children }: { to: string; icon: typeof Home; 
 
 export function Shell() {
   const { user, profile, signOut } = useAuth()
+  const { storageWarning } = useMusic()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
@@ -31,6 +33,7 @@ export function Shell() {
       <header className="topbar"><div className="flex items-center gap-3"><button className="mobile-toggle" aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-site-menu" onClick={() => setMobileOpen(open => !open)}>{mobileOpen ? <X size={21} /> : <Menu size={21} />}</button><Link to="/" className="mobile-logo font-display" onClick={() => setMobileOpen(false)}><Waves size={23} /> SONAR.</Link></div><div className="hidden text-xs font-medium tracking-[0.12em] text-ui-muted sm:block">A DIFFERENT WAY TO FEEL MUSIC</div><div className="flex items-center gap-3"><Link to="/theme" title="Customize site theme" aria-label="Customize site theme" className="top-theme-trigger"><Palette size={18} /></Link><Link to="/submit" className="top-submit"><Plus size={16} /> <span>ADD A SONG</span></Link>{user ? <Link to="/account" className="top-avatar" aria-label="Your account">{(profile?.username || user.email || 'U')[0].toUpperCase()}</Link> : <Link to="/login" className="text-xs font-semibold text-ui-text/70 hover:text-ui-text">Sign in</Link>}</div></header>
       {mobileOpen && <nav id="mobile-site-menu" className="mobile-nav" aria-label="Mobile navigation"><Link onClick={() => setMobileOpen(false)} to="/">Discover</Link><Link onClick={() => setMobileOpen(false)} to="/submit">Submit a song</Link><Link onClick={() => setMobileOpen(false)} to="/library">Your library</Link><Link onClick={() => setMobileOpen(false)} to="/account">My account</Link><Link onClick={() => setMobileOpen(false)} to="/theme">Theme Studio</Link>{(isDemo || profile?.role === 'admin') && <Link onClick={() => setMobileOpen(false)} to="/admin">Admin {isDemo ? 'preview' : ''}</Link>}</nav>}
       {isDemo && <div className="demo-banner">DEMO MODE <span>•</span> Your songs and likes save only in this browser. Connect Supabase for real accounts and shared content.</div>}
+      {storageWarning && <div role="status" className="border-b border-amber-300/30 bg-ui-surface px-6 py-3 text-center text-xs leading-6 text-ui-text">{storageWarning}</div>}
       <main ref={mainRef} tabIndex={-1} className="main-content"><div key={location.pathname} className="route-content"><Outlet /></div></main>
       <ScrollRestoration />
       <footer className="flex flex-wrap justify-between gap-2 border-t border-ui-border px-6 py-6 text-[11px] text-ui-muted md:px-10"><span>© 2026 SONAR — MADE FOR MUSIC LOVERS.</span><span>DEMO CONTENT IS FICTIONAL · MUSIC PLAYBACK BY SPOTIFY</span></footer>

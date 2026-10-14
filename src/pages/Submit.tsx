@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ArrowLeft, ArrowRight, Link2, LoaderCircle, Maximize2, Music2, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { MusicVisual } from '../components/MusicVisual'
@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useMusic } from '../context/MusicContext'
 import { isDemo } from '../lib/supabase'
 import { createVisualColors } from '../lib/visualColors'
-import { getSpotifyPreview, parseSpotifyTrackUrl } from '../lib/spotify'
+import { createSpotifyPreviewLoader, parseSpotifyTrackUrl } from '../lib/spotify'
 import type { Song, VisualPaletteMap, VisualStyle } from '../types/music'
 
 export function Submit() {
@@ -29,6 +29,21 @@ export function Submit() {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [previewLoader] = useState(createSpotifyPreviewLoader)
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false; previewLoader.cancel() }
+  }, [previewLoader])
+
+  const changeSpotifyUrl = (value: string) => {
+    previewLoader.cancel()
+    setFetching(false)
+    setSpotifyUrl(value)
+    setCover(null)
+    setNotice('')
+    setError('')
+  }
 
   const parsed = parseSpotifyTrackUrl(spotifyUrl)
   const previewSong: Song = { id: 'preview', user_id: null, spotify_url: parsed?.url || null, spotify_id: parsed?.id || null, title: title || 'YOUR SONG TITLE', artist: artist || 'Your artist', album: album || null, cover_url: cover, visual_style: style, visual_colors: visualColors, minimal_colors: style === 'minimal' ? visualColors.minimal : null, caption: caption || null, status: 'published', created_at: new Date().toISOString() }
@@ -38,13 +53,15 @@ export function Submit() {
     if (!parsed) { setError('Paste a Spotify track link (not a playlist, album, or artist URL).'); return }
     setFetching(true)
     try {
-      const result = await getSpotifyPreview(parsed.url)
-      if (result.title) setTitle(result.title)
+      const result = await previewLoader.load(parsed.url)
+      if (!result || !mounted.current) return
+      if (result.title) setTitle(current => current === title ? result.title : current)
       setCover(result.cover)
       setNotice('Spotify preview found! Please verify the song title and fill in the artist.')
     } catch {
+      if (!mounted.current) return
       setNotice('We could not automatically load Spotify metadata. You can still fill in the fields manually and submit the valid track URL.')
-    } finally { setFetching(false) }
+    } finally { if (mounted.current && !previewLoader.pending) setFetching(false) }
   }
 
   const submit = async (e: FormEvent) => {
@@ -64,7 +81,7 @@ export function Submit() {
     <Link to="/" className="inline-flex items-center gap-2 text-xs text-ui-text/50 hover:text-ui-text"><ArrowLeft size={15} /> Back to discover</Link>
     <div className="mt-7 mb-9"><div className="eyebrow"><span className="text-lime">CREATE</span> / ADD TO THE FREQUENCY</div><h1 className="font-display mt-2 text-[clamp(36px,5vw,60px)] font-bold tracking-[-0.07em]">SHARE YOUR <span className="text-lime">SOUND.</span></h1><p className="mt-3 text-sm text-ui-muted">Pick the track, choose the vibe, and make it your own.</p></div>
     <form onSubmit={submit} className="grid gap-8 xl:grid-cols-[1fr_350px]"><div className="space-y-7">
-      <div className="form-panel"><div className="panel-title"><span>01</span> FIND THE TRACK</div><label className="form-label" htmlFor="spotify">Spotify track link</label><div className="flex flex-col gap-3 sm:flex-row"><div className="form-input-wrap flex-1"><Link2 size={18} className="text-ui-muted" /><input id="spotify" type="url" value={spotifyUrl} onChange={e => { setSpotifyUrl(e.target.value); setCover(null) }} placeholder="https://open.spotify.com/track/..." required /></div><button type="button" disabled={fetching} onClick={() => void fetchDetails()} className="btn-secondary shrink-0">{fetching ? <LoaderCircle className="animate-spin" size={16} /> : <Sparkles size={16} />} Fetch details</button></div><p className="mt-3 text-xs leading-6 text-ui-muted">We use Spotify oEmbed to find the title and cover art. Artist and album may need to be entered manually.</p>
+      <div className="form-panel"><div className="panel-title"><span>01</span> FIND THE TRACK</div><label className="form-label" htmlFor="spotify">Spotify track link</label><div className="flex flex-col gap-3 sm:flex-row"><div className="form-input-wrap flex-1"><Link2 size={18} className="text-ui-muted" /><input id="spotify" type="url" value={spotifyUrl} onChange={e => changeSpotifyUrl(e.target.value)} placeholder="https://open.spotify.com/track/..." required /></div><button type="button" disabled={fetching} onClick={() => void fetchDetails()} className="btn-secondary shrink-0">{fetching ? <LoaderCircle className="animate-spin" size={16} /> : <Sparkles size={16} />} Fetch details</button></div><p className="mt-3 text-xs leading-6 text-ui-muted">We use Spotify oEmbed to find the title and cover art. Artist and album may need to be entered manually.</p>
         <div className="mt-6 grid gap-4 sm:grid-cols-2"><div><label className="form-label" htmlFor="title">Song title <span>*</span></label><input className="form-input" id="title" value={title} onChange={e => setTitle(e.target.value)} required maxLength={160} placeholder="Your favorite song" /></div><div><label className="form-label" htmlFor="artist">Artist <span>*</span></label><input className="form-input" id="artist" value={artist} onChange={e => setArtist(e.target.value)} required maxLength={160} placeholder="Artist name" /></div><div className="sm:col-span-2"><label className="form-label" htmlFor="album">Album <small>(optional)</small></label><input className="form-input" id="album" value={album} onChange={e => setAlbum(e.target.value)} maxLength={160} placeholder="Album name" /></div></div>
       </div>
       <div className="form-panel"><div className="panel-title"><span>02</span> CHOOSE YOUR VISUAL</div>
