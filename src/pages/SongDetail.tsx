@@ -6,6 +6,7 @@ import { SongCard } from '../components/SongCard'
 import { VisualPreviewModal } from '../components/VisualPreviewModal'
 import { useMusic } from '../context/MusicContext'
 import { isDemo } from '../lib/supabase'
+import { isLocalSubmission } from '../lib/localSubmissions'
 import type { VisualStyle } from '../types/music'
 
 const styleNames: Record<VisualStyle, string> = { album: 'Cover art', equalizer: 'Equalizer', vinyl: 'Vinyl', minimal: 'Minimal' }
@@ -69,7 +70,7 @@ export function SongDetail() {
   return <>
     <div className="song-detail-topline">
       <Link to="/" viewTransition className="song-back-link"><ArrowLeft size={15} /> Back to Discover</Link>
-      <span className="eyebrow">SONAR / TRACK NOTES</span>
+      {isDemo && isLocalSubmission(song) ? <Link to="/account" className="song-back-link">My submissions <ArrowRight size={15} /></Link> : <span className="eyebrow">SONAR / TRACK NOTES</span>}
     </div>
     <section className="song-detail-hero" aria-labelledby="song-title">
       <div className="song-art-panel">
@@ -89,6 +90,7 @@ export function SongDetail() {
         </dl>
         {song.caption && <div className="song-caption"><p className="eyebrow">WHY THIS TRACK</p><blockquote>“{song.caption}”</blockquote></div>}
         <div className="song-detail-actions">
+          {isDemo && isLocalSubmission(song) && <Link to={`/song/${song.id}/edit`} className="btn-secondary">Edit submission</Link>}
           {song.spotify_url && <a className="btn-primary" target="_blank" rel="noopener noreferrer" href={song.spotify_url}>Listen on Spotify <ArrowUpRight size={17} /></a>}
           <button type="button" disabled={liking} aria-pressed={liked} onClick={() => void likeSong()} className={`btn-secondary ${liked ? 'song-liked' : ''}`}>
             {liking ? <LoaderCircle size={17} className="animate-spin" /> : <Heart size={17} fill={liked ? 'currentColor' : 'none'} />}

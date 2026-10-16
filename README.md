@@ -14,6 +14,16 @@ npm run dev
 
 Open Vite's local URL (usually `http://localhost:5173`). For production build checks, run `npm run build`.
 
+## Phase 1: drafts and your submissions
+
+In demo mode, **My submissions** (`/account`) now lists tracks you published in the current browser, with a preview and Edit/Delete controls. Fictional showcase tracks cannot be changed. Deleting asks for confirmation and also removes that track's saved like. Editing keeps the song's ID, creation date, and likes while updating its details, chosen visual, and independent palettes. **Cancel editing** leaves the published song unchanged.
+
+On `/submit`, **Save draft** keeps one unfinished submission in this browser, including incomplete details and all four color palettes. Saving is explicit: after more edits, the page says there are unsaved changes. The saved draft restores when you return and is also accessible through **Continue draft** in My submissions. **Clear draft** asks before clearing the saved draft and current form. Publishing clears the completed draft; editing a published track leaves any separate draft alone. Failed saves/clears display a recovery message. These features currently apply to local demo submissions; connected account editing and deletion remain Phase 2 work.
+
+**Verified October 17, 2026:** 22 regression tests, TypeScript checking, and the production build passed. Browser checks used isolated test data to verify draft restoration and palette retention, editing without losing likes, canceling edits, deletion and library cleanup, publishing and clearing drafts, protected showcase tracks, and layouts at desktop and 390px mobile widths.
+
+To try it: enter a title and colors on Submit, save the draft, open My submissions and continue it, fill a Spotify track link and artist, and publish. Open My submissions to edit the result or test the delete confirmation. Refresh using the same browser address to check persistence. Real Spotify playback and live Supabase behavior still need separate testing.
+
 ## Phase 1 stability fixes
 
 - Changing a Spotify link cancels its pending metadata request. Late responses and errors are ignored, including responses already decoding when cancelled. Navigating away also cancels the request. A title edited while fetching is preserved.
@@ -102,7 +112,7 @@ Only public/publishable credentials belong in `VITE_` variables. Never expose a 
 | `/song/:id` | Song details and Spotify embed |
 | `/login`, `/register` | Authentication |
 | `/library` | Liked songs |
-| `/account` | Profile and own songs |
+| `/account` | Demo drafts and submission management; profile and own songs when connected |
 | `/admin` | Admin overview and moderation |
 | `/theme` | Site-wide Theme Studio |
 

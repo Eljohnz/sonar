@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { demoSongs } from '../data/demo'
 import { isDemo, supabase } from '../lib/supabase'
 import { readDemoLikes, readDemoSongs, writeDemoValue } from '../lib/demoStorage'
+import { editLocalSubmission, requireLocalSubmission } from '../lib/localSubmissions'
 import type { Song, SongInput, SongStatus } from '../types/music'
 import { useAuth } from './AuthContext'
 
@@ -13,6 +14,8 @@ type MusicContextValue = {
   error: string | null
   storageWarning: string | null
   addSong: (input: SongInput) => Promise<void>
+  updateSong: (songId: string, input: SongInput) => Promise<void>
+  deleteSong: (songId: string) => Promise<void>
   toggleLike: (songId: string) => Promise<void>
   setStatus: (songId: string, status: SongStatus) => Promise<void>
   refresh: () => Promise<void>
@@ -78,6 +81,20 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     await refresh()
   }
 
+  const updateSong = async (songId: string, input: SongInput) => {
+    if (!isDemo) throw new Error('Submission editing is currently available for local demo tracks only.')
+    const existing = requireLocalSubmission(songs.find(song => song.id === songId))
+    const updated = editLocalSubmission(existing, input)
+    setSongs(current => current.map(song => song.id === songId ? updated : song))
+  }
+
+  const deleteSong = async (songId: string) => {
+    if (!isDemo) throw new Error('Submission deletion is currently available for local demo tracks only.')
+    requireLocalSubmission(songs.find(song => song.id === songId))
+    setSongs(current => current.filter(song => song.id !== songId))
+    setLikedIds(current => current.filter(id => id !== songId))
+  }
+
   const toggleLike = async (songId: string) => {
     const alreadyLiked = likedIds.includes(songId)
     if (!supabase) {
@@ -101,7 +118,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     await refresh()
   }
 
-  return <MusicContext.Provider value={{ songs, likes, likedIds, busy, error, storageWarning, addSong, toggleLike, setStatus, refresh }}>{children}</MusicContext.Provider>
+  return <MusicContext.Provider value={{ songs, likes, likedIds, busy, error, storageWarning, addSong, updateSong, deleteSong, toggleLike, setStatus, refresh }}>{children}</MusicContext.Provider>
 }
 
 export function useMusic() {

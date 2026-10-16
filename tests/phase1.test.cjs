@@ -3,6 +3,8 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { readDemoSongs, readDemoLikes, writeDemoValue } = require(path.join(process.env.SONAR_TEST_BUILD, 'lib/demoStorage.js'))
 const { createSpotifyPreviewLoader, getSpotifyPreview } = require(path.join(process.env.SONAR_TEST_BUILD, 'lib/spotify.js'))
+const { emptySubmissionDraft, songToDraft, hasDraftContent, readSubmissionDraft, saveSubmissionDraft, clearSubmissionDraft } = require(path.join(process.env.SONAR_TEST_BUILD, 'lib/submissionDraft.js'))
+const { isLocalSubmission, requireLocalSubmission, editLocalSubmission } = require(path.join(process.env.SONAR_TEST_BUILD, 'lib/localSubmissions.js'))
 
 const url = 'https://open.spotify.com/track/1234567890123456789012'
 const otherUrl = 'https://open.spotify.com/track/abcdefghijklmnopqrstuv'
@@ -13,6 +15,77 @@ const song = {
   status: 'published', created_at: '2026-10-15T00:00:00Z',
 }
 const storage = raw => ({ getItem: () => raw })
+
+test('incomplete submission drafts preserve fields and every palette across reloads', () => {
+  const draft = emptySubmissionDraft()
+  draft.title = 'Unfinished song'
+  draft.caption = 'An unfinished caption'
+  draft.style = 'vinyl'
+  draft.visualColors.album.background = '#112233'
+  draft.visualColors.equalizer.bars = '#445566'
+  draft.visualColors.vinyl.record = '#778899'
+  draft.visualColors.minimal.accent = '#ABCDEF'
+  let raw
+  assert.equal(saveSubmissionDraft(draft, { setItem: (_key, value) => { raw = value } }), true)
+  assert.deepEqual(readSubmissionDraft(storage(raw)), draft)
+})
+
+test('an empty draft is distinguished from a palette-only draft', () => {
+  const draft = emptySubmissionDraft()
+  assert.equal(hasDraftContent(draft), false)
+  draft.visualColors.album.accent = '#123456'
+  assert.equal(hasDraftContent(draft), true)
+})
+
+test('damaged and unsupported drafts are ignored without affecting saved songs', () => {
+  for (const raw of ['{', '{}', 'null', '[]', '{"version":2,"values":{}}', '{"version":1,"values":{"title":7}}']) {
+    assert.equal(readSubmissionDraft(storage(raw)), null)
+  }
+})
+
+test('draft load sanitizes palettes, artwork URLs, and excessive text', () => {
+  const draft = { ...emptySubmissionDraft(), title: 'x'.repeat(200), cover: 'javascript:alert(1)', visualColors: { minimal: { accent: 'invalid' } } }
+  const result = readSubmissionDraft(storage(JSON.stringify({ version: 1, values: draft })))
+  assert.equal(result.title.length, 160)
+  assert.equal(result.cover, null)
+  assert.match(result.visualColors.minimal.accent, /^#[0-9A-F]{6}$/i)
+})
+
+test('draft read, save, and clear failures return recoverable results', () => {
+  assert.equal(readSubmissionDraft({ getItem: () => { throw new Error('Denied') } }), null)
+  assert.equal(saveSubmissionDraft(emptySubmissionDraft(), { setItem: () => { throw new Error('Quota') } }), false)
+  assert.equal(clearSubmissionDraft({ removeItem: () => { throw new Error('Denied') } }), false)
+  let removed
+  assert.equal(clearSubmissionDraft({ removeItem: key => { removed = key } }), true)
+  assert.equal(removed, 'sonar.submission-draft.v1')
+})
+
+test('editing initializes the form from a track and retains its legacy minimal palette', () => {
+  const draft = songToDraft(song)
+  assert.equal(draft.title, song.title)
+  assert.equal(draft.spotifyUrl, song.spotify_url)
+  assert.deepEqual(draft.visualColors.minimal, song.minimal_colors)
+})
+
+test('fictional showcase tracks, other users, and missing submissions cannot be managed', () => {
+  for (const item of [undefined, { ...song, id: 'demo-1' }, { ...song, user_id: 'another-user' }]) {
+    assert.equal(isLocalSubmission(item), false)
+    assert.throws(() => requireLocalSubmission(item), /Only your own submissions/)
+  }
+  assert.equal(isLocalSubmission(song), true)
+})
+
+test('editing changes details while preserving identity, ownership, status, and creation date', () => {
+  const updated = editLocalSubmission(song, { ...song, spotify_url: otherUrl, title: ' New title ', artist: ' New artist ',
+    id: 'replacement-id', user_id: 'another-user', status: 'hidden', created_at: '2099-01-01T00:00:00Z' })
+  assert.equal(updated.title, 'New title')
+  assert.equal(updated.artist, 'New artist')
+  assert.equal(updated.spotify_id, 'abcdefghijklmnopqrstuv')
+  for (const key of ['id', 'user_id', 'status', 'created_at']) assert.equal(updated[key], song[key])
+  assert.equal(song.title, 'Saved song')
+  assert.throws(() => editLocalSubmission({ ...song, id: 'demo-1' }, song), /Only your own/)
+  assert.throws(() => editLocalSubmission(song, { ...song, spotify_url: 'invalid' }), /valid Spotify track/)
+})
 
 test('invalid JSON and non-array saved data recover to empty collections', () => {
   for (const raw of ['{', 'null', '{}', '42', '"saved"']) {
