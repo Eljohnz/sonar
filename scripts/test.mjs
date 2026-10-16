@@ -12,6 +12,7 @@ try {
     '--outDir', output, '--rootDir', 'src', '--module', 'commonjs',
     '--moduleResolution', 'node', '--target', 'ES2022', '--lib', 'ES2022,DOM',
     '--strict', '--skipLibCheck', 'src/lib/demoStorage.ts', 'src/lib/spotify.ts',
+    'src/lib/submissionDraft.ts', 'src/lib/localSubmissions.ts',
   ], { stdio: 'inherit' })
   execFileSync(process.execPath, ['--test', 'tests/phase1.test.cjs'], {
     stdio: 'inherit', env: { ...process.env, SONAR_TEST_BUILD: output },

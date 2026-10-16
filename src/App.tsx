@@ -17,6 +17,7 @@ const router = createBrowserRouter([
     { index: true, element: <Discover /> },
     { path: 'submit', element: <Submit /> },
     { path: 'song/:id', element: <SongDetail /> },
+    { path: 'song/:id/edit', element: <Submit /> },
     { path: 'login', element: <Auth mode="login" /> },
     { path: 'register', element: <Auth mode="register" /> },
     { path: 'library', element: <Library /> },
